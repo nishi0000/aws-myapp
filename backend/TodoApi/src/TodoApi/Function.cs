@@ -1,7 +1,6 @@
-using Amazon.Lambda.Core;
-using Amazon.Lambda.APIGatewayEvents;
-using System.Collections.Generic;
 using System.Text.Json;
+using Amazon.Lambda.APIGatewayEvents;
+using Amazon.Lambda.Core;
 
 
 // Lambda 関数の JSON 入力を .NET のクラスに変換できるようにするためのアセンブリ属性
@@ -12,13 +11,13 @@ namespace TodoApi;
 public class Function
 {
     public record TodoCreateRequest(string title, bool completed);
+    public record LogsRequest(DateTime ts, string type,string text);
     
     public APIGatewayHttpApiV2ProxyResponse FunctionHandler(APIGatewayHttpApiV2ProxyRequest request,ILambdaContext context)
     {
-        
-
         var method = request?.RequestContext?.Http?.Method;
-        context.Logger.LogLine($"メソッド'{method}' リクエストID='{request?.RawPath}'");
+        var path = request?.RawPath;
+        context.Logger.LogLine($"メソッド'{method}' リクエストID='{path}'");
 
         if (method == "POST")
         {
@@ -35,12 +34,22 @@ public class Function
                 };
             }
 
-            TodoCreateRequest? dto;
+            LogsRequest? dto;
+
 
             try
-            { 
+            {
+                // if (path == "/logs")
+                // {
 
-                dto = JsonSerializer.Deserialize<TodoCreateRequest>(request.Body);
+                    dto = JsonSerializer.Deserialize<LogsRequest>(request.Body);
+                // }
+                // else
+                // {
+                //     TodoCreateRequest? dto;
+                //     JsonSerializer.Deserialize<TodoCreateRequest>(request.Body);
+                // }
+
             }
             catch(JsonException)
             {
