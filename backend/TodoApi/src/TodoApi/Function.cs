@@ -68,7 +68,7 @@ public class Function
 
 
             }
-            else if (path == "/todos")
+            else if (path != null  && path.EndsWith("/todos"))
             {
                 
                 try
@@ -126,31 +126,35 @@ public class Function
 
     private APIGatewayHttpApiV2ProxyResponse BadRequest(string message)
     {
+        var body = JsonSerializer.Serialize(new {error = message});
 
         return new APIGatewayHttpApiV2ProxyResponse
         {
             StatusCode = 400,
-            Body = "{\"error\":\"" + message + "\"}",
+            Body = body,
             Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
         };
     }
 
     private APIGatewayHttpApiV2ProxyResponse ServerError()
     {
+        var body = JsonSerializer.Serialize(new {error = "internal error"});
         return new APIGatewayHttpApiV2ProxyResponse
         {
             StatusCode = 500,
-            Body = "{\"error\":\"internal error\"}",
+            Body = body,
             Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
         };
     }
 
     private APIGatewayHttpApiV2ProxyResponse NotFound()
     {
+        var body = JsonSerializer.Serialize(new {error = "not found"});
+
         return new APIGatewayHttpApiV2ProxyResponse
         {
             StatusCode = 404,
-            Body = "{\"error\":\"not found\"}",
+            Body = body,
             Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
         };
     }
