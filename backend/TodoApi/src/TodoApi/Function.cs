@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
@@ -111,12 +112,12 @@ public class Function
 
     private APIGatewayHttpApiV2ProxyResponse Ok(object obj)
     {
-        var jsonPost = JsonSerializer.Serialize(obj);
+        var body = JsonSerializer.Serialize(obj);
 
         return new APIGatewayHttpApiV2ProxyResponse
         {
         StatusCode = 200,
-        Body = jsonPost,
+        Body = body,
         Headers = new Dictionary<string, string>
         {
             { "Content-Type", "application/json" }
@@ -124,38 +125,21 @@ public class Function
         };
     }
 
-    private APIGatewayHttpApiV2ProxyResponse BadRequest(string message)
+  private APIGatewayHttpApiV2ProxyResponse Error(int statusCode,string message)
     {
-        var body = JsonSerializer.Serialize(new {error = message});
-
         return new APIGatewayHttpApiV2ProxyResponse
         {
-            StatusCode = 400,
-            Body = body,
+            StatusCode = statusCode,
+            Body = JsonSerializer.Serialize(new {error = message}),
             Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
+
         };
     }
 
-    private APIGatewayHttpApiV2ProxyResponse ServerError()
-    {
-        var body = JsonSerializer.Serialize(new {error = "internal error"});
-        return new APIGatewayHttpApiV2ProxyResponse
-        {
-            StatusCode = 500,
-            Body = body,
-            Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
-        };
-    }
+    private APIGatewayHttpApiV2ProxyResponse BadRequest(string message) => Error(400,message);
 
-    private APIGatewayHttpApiV2ProxyResponse NotFound()
-    {
-        var body = JsonSerializer.Serialize(new {error = "not found"});
+    private APIGatewayHttpApiV2ProxyResponse ServerError() => Error(500,"internal error");
 
-        return new APIGatewayHttpApiV2ProxyResponse
-        {
-            StatusCode = 404,
-            Body = body,
-            Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
-        };
-    }
+    private APIGatewayHttpApiV2ProxyResponse NotFound() => Error(404,"not found");
+    
 }
