@@ -1,7 +1,9 @@
-using System.Reflection;
 using System.Text.Json;
 using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
 
 
 // Lambda 関数の JSON 入力を .NET のクラスに変換できるようにするためのアセンブリ属性
@@ -13,12 +15,14 @@ public class Function
 {
     // TodoCreateRequestの型定義
     public record TodoCreateRequest(string title, bool completed);
+    private string? supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL");
+    private string? supabaseAnonKey = Environment.GetEnvironmentVariable("SUPABASE_ANON_KEY");
 
     // LogsRequestの型定義
     public record LogsRequest(DateTime ts, string type,string text);
     
     // APIGatewayから渡されたrequestを受け取って、HTTPレスポンスを返すハンドラ
-    public APIGatewayHttpApiV2ProxyResponse FunctionHandler(APIGatewayHttpApiV2ProxyRequest request,ILambdaContext context)
+    public async Task<APIGatewayHttpApiV2ProxyResponse> FunctionHandler(APIGatewayHttpApiV2ProxyRequest request,ILambdaContext context)
     {
         // メソッド（GET/POSTを受け取る）
         var method = request?.RequestContext?.Http?.Method;
@@ -27,20 +31,18 @@ public class Function
         var path = request?.RawPath;
 
         // CloudWatchにログを表示する
-        context.Logger.LogLine($"メソッド'{method}' ルート='{path}'");
+        context.Logger.LogLine($"SUPABASE_URL exists = {(!string.IsNullOrEmpty(supabaseUrl))}");
+        context.Logger.LogLine($"SUPABASE_ANON_KEY exists = {(!string.IsNullOrEmpty(supabaseAnonKey))}");
 
         // methodの種類で分岐
         if (method == "POST")
         {
             // 渡されたボディ部分をcloudwatchに表示する
             var body = request.Body;
-            context.Logger.LogLine($"body='{request.Body}'");
 
             // もし、ボディ部分がnullもしくはブランクだったら、コード400を返す
-            if (string.IsNullOrWhiteSpace(body))
-            {
-                return BadRequest("empty body");
-            }
+            if (string.IsNullOrWhiteSpace(body)) return BadRequest("empty body");
+            context.Logger.LogLine($"body='{request.Body.Length}'");
 
             // もし、パスが/logsだったら
              if (path != null  && path.EndsWith("/logs"))
@@ -48,14 +50,44 @@ public class Function
                 
                 try
                 {
-                    LogsRequest? dto;
-                    dto = JsonSerializer.Deserialize<LogsRequest>(body);
+
+                    if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(supabaseAnonKey)) return ServerError();
+
+                    var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/logs";
+                    
+                    LogsRequest? dto = JsonSerializer.Deserialize<LogsRequest>(body);
 
                     if(dto == null) return BadRequest("invalid json");
 
-                    var created = new { id= 999, dto.ts, dto.type, dto.text };
+                    var payload = new { dto.ts, dto.type, dto.text };
+                    var json = JsonSerializer.Serialize(payload);
 
-                    return Ok(created);
+                    using var http = new HttpClient();
+                    using var req = new HttpRequestMessage(HttpMethod.Post, endpoint);
+
+                    req.Headers.Add("apikey", supabaseAnonKey);
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", supabaseAnonKey);
+                    req.Headers.Add("Prefer", "return=representation");
+                    req.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                    var res = await http.SendAsync(req);
+                    var resBody = await res.Content.ReadAsStringAsync();
+
+                    if (!res.IsSuccessStatusCode)
+                    {
+                        context.Logger.LogLine($"supabase status={(int)res.StatusCode} body={resBody}");
+                        return ServerError();
+                    }
+
+                    return new APIGatewayHttpApiV2ProxyResponse
+                    {
+                        StatusCode = 200,
+                        Body = resBody,
+                        Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
+                    };
+
+
+                    // return Ok(resBody);
 
                 }
                 catch(JsonException)
@@ -141,5 +173,5 @@ public class Function
     private APIGatewayHttpApiV2ProxyResponse ServerError() => Error(500,"internal error");
 
     private APIGatewayHttpApiV2ProxyResponse NotFound() => Error(404,"not found");
-    
+
 }
