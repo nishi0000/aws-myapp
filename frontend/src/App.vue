@@ -8,7 +8,7 @@ const todos = ref([])
 // ページ表示されたタイミングで実行される
 onMounted(async () => {
   const res = await fetch(
-    ''
+    'https://zkn04f1al1.execute-api.ap-northeast-1.amazonaws.com/prod/todos'
   )
 
   const data = await res.json()
