@@ -34,6 +34,9 @@ public class Function
         context.Logger.LogLine($"SUPABASE_URL exists = {(!string.IsNullOrEmpty(supabaseUrl))}");
         context.Logger.LogLine($"SUPABASE_ANON_KEY exists = {(!string.IsNullOrEmpty(supabaseAnonKey))}");
 
+        // AWSでDB用のキーが設定されているか確認する
+        if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(supabaseAnonKey)) return ServerError();
+
         // methodの種類で分岐
         if (method == "POST")
         {
@@ -42,23 +45,24 @@ public class Function
 
             // もし、ボディ部分がnullもしくはブランクだったら、コード400を返す
             if (string.IsNullOrWhiteSpace(body)) return BadRequest("empty body");
-            context.Logger.LogLine($"body='{request.Body.Length}'");
+            context.Logger.LogLine($"body='{body.Length}'");
+
 
             // もし、パスが/logsだったら
              if (path != null  && path.EndsWith("/logs"))
             {
-                
+
                 try
                 {
-
-                    if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(supabaseAnonKey)) return ServerError();
-
                     var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/logs";
                     
+                    // POSTで渡された値をC#で扱える形に変換する
                     LogsRequest? dto = JsonSerializer.Deserialize<LogsRequest>(body);
 
+                    // データが変換できなければエラーとする
                     if(dto == null) return BadRequest("invalid json");
 
+                    // 受け取った値をDBに渡す形に変換する
                     var payload = new { dto.ts, dto.type, dto.text };
                     var json = JsonSerializer.Serialize(payload);
 
@@ -73,12 +77,14 @@ public class Function
                     var res = await http.SendAsync(req);
                     var resBody = await res.Content.ReadAsStringAsync();
 
+                    // エラーが出たらログを残してサーバーエラーとする
                     if (!res.IsSuccessStatusCode)
                     {
                         context.Logger.LogLine($"supabase status={(int)res.StatusCode} body={resBody}");
                         return ServerError();
                     }
 
+                    // 成功したら値を返す
                     return new APIGatewayHttpApiV2ProxyResponse
                     {
                         StatusCode = 200,
@@ -130,6 +136,20 @@ public class Function
                 return  NotFound();
 
             }
+        }
+        else if(method == "GET")
+        {            
+            // もし、パスが/logsだったら
+            if (path != null  && path.EndsWith("/logs"))
+            {
+
+            }
+            else
+            {
+                return  NotFound();
+            }
+
+
         }
 
         var todos = new[]
