@@ -143,6 +143,42 @@ public class Function
             if (path != null  && path.EndsWith("/logs"))
             {
 
+               try
+                {
+                    var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/logs?select=*&order=ts.desc,id.desc&limit=20";
+
+                    using var http = new HttpClient();
+                    using var req = new HttpRequestMessage(HttpMethod.Get, endpoint);
+
+                    req.Headers.Add("apikey", supabaseAnonKey);
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", supabaseAnonKey);
+
+                    var res = await http.SendAsync(req);
+                    var resBody = await res.Content.ReadAsStringAsync();
+
+                                        // エラーが出たらログを残してサーバーエラーとする
+                    if (!res.IsSuccessStatusCode)
+                    {
+                        context.Logger.LogLine($"supabase status={(int)res.StatusCode} body={resBody.Length}");
+                        return ServerError();
+                    }
+
+                    // 成功したら値を返す
+                    return new APIGatewayHttpApiV2ProxyResponse
+                    {
+                        StatusCode = 200,
+                        Body = resBody,
+                        Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
+                    };
+                    
+
+                }
+                catch (Exception)
+                {
+                    return ServerError();
+                }
+                    
+
             }
             else
             {
