@@ -145,7 +145,10 @@ public class Function
 
                try
                 {
-                    var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/logs?select=*&order=ts.desc,id.desc&limit=20";
+                    int limit = 20;
+                    int maxLimt = 100;
+
+                    var endpoint = $"{supabaseUrl.TrimEnd('/')}/rest/v1/logs?select=*&order=ts.desc,id.desc&limit={limit}";
 
                     using var http = new HttpClient();
                     using var req = new HttpRequestMessage(HttpMethod.Get, endpoint);
@@ -156,7 +159,7 @@ public class Function
                     var res = await http.SendAsync(req);
                     var resBody = await res.Content.ReadAsStringAsync();
 
-                                        // エラーが出たらログを残してサーバーエラーとする
+                    // エラーが出たらログを残してサーバーエラーとする
                     if (!res.IsSuccessStatusCode)
                     {
                         context.Logger.LogLine($"supabase status={(int)res.StatusCode} body={resBody.Length}");
